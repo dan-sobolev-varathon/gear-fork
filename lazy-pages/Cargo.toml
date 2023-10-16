@@ -32,3 +32,5 @@ winapi = { workspace = true, features = ["excpt", "memoryapi"] }
 
 [dev-dependencies]
 env_logger.workspace = true
+numerated = { workspace = true, features = ["mock"] }
+proptest.workspace = true
