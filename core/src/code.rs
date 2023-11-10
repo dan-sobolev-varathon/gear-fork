@@ -21,7 +21,7 @@
 use crate::{
     ids::CodeId,
     message::{DispatchKind, WasmEntryPoint},
-    pages::WasmPagesAmount,
+    pages::{PageU32Size, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
@@ -36,6 +36,7 @@ use gear_wasm_instrument::{
     },
     STACK_END_EXPORT_NAME,
 };
+use numerated::Bound;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -44,7 +45,7 @@ use scale_info::{
 /// Defines maximal permitted amount of wasm memory pages.
 ///
 /// Currently cannot be bigger than u32::MAX, cause of wasmer limitations.
-pub const MAX_WASM_PAGES_AMOUNT: WasmPagesAmount = WasmPagesAmount::from_u16(65535);
+pub const MAX_WASM_PAGES_AMOUNT: WasmPagesAmount = WasmPagesAmount::UPPER;
 
 /// Name of exports allowed on chain except execution kinds.
 pub const STATE_EXPORTS: [&str; 2] = ["state", "metahash"];
@@ -129,27 +130,71 @@ fn get_global_init_const_i32(module: &Module, global_index: u32) -> Result<i32, 
     get_init_expr_const_i32(init_expr).ok_or(CodeError::StackEndInitialization)
 }
 
+/// Check that data segments are not overlapping with stack and are inside static pages.
+fn check_data_section(module: &Module, static_pages: WasmPagesAmount) -> Result<(), CodeError> {
+    let Some(data_section) = module.data_section() else {
+        // No data section - nothing to check.
+        return Ok(());
+    };
+
+    let stack_end_offset = get_export_global_index(module, STACK_END_EXPORT_NAME)
+        .and_then(|index| get_global_init_const_i32(module, *index).ok());
+
+    for data_segment in data_section.entries() {
+        let data_segment_offset = data_segment
+            .offset()
+            .as_ref()
+            .and_then(get_init_expr_const_i32)
+            .ok_or(CodeError::DataSegmentInitialization)? as u32;
+
+        if let Some(stack_end_offset) = stack_end_offset {
+            // Checks, that each data segment does not overlap with stack.
+            if data_segment_offset < stack_end_offset as u32 {
+                log::trace!(
+                    "Data segment {data_segment_offset:#x} overlaps stack {stack_end_offset:#x}"
+                );
+                return Err(CodeError::StackEndOverlaps);
+            }
+        }
+
+        let Some(size) = u32::try_from(data_segment.value().len())
+            .map_err(|err| {
+                log::trace!("Data segment size is too big: {err:?}");
+                CodeError::DataSegmentInitialization
+            })?
+            .checked_sub(1)
+        else {
+            // Zero size data segment is strange but allowed.
+            continue;
+        };
+
+        let data_segment_last_byte_offset =
+            data_segment_offset.checked_add(size).ok_or_else(|| {
+                log::trace!("Data segment end is out of possible 32 bits address space");
+                CodeError::DataSegmentInitialization
+            })?;
+
+        let Some(static_pages) = static_pages.get() else {
+            // `static_pages` is upper bound of possible 32 bits address space,
+            // so `data_section_end_offset` is always inside `static_pages` memory.
+            continue;
+        };
+
+        if data_segment_last_byte_offset >= static_pages.offset() {
+            log::trace!("Data segment last byte {data_segment_last_byte_offset:#x} is out of static pages {static_pages:?}");
+            return Err(CodeError::DataSegmentInitialization);
+        }
+    }
+
+    Ok(())
+}
+
 fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeError> {
     let Some(&stack_end_global_index) = get_export_global_index(module, STACK_END_EXPORT_NAME)
     else {
         return Ok(());
     };
     let stack_end_offset = get_global_init_const_i32(module, stack_end_global_index)?;
-
-    // Checks, that each data segment does not overlap with stack.
-    if let Some(data_section) = module.data_section() {
-        for data_segment in data_section.entries() {
-            let offset = data_segment
-                .offset()
-                .as_ref()
-                .and_then(get_init_expr_const_i32)
-                .ok_or(CodeError::DataSegmentInitialization)?;
-
-            if offset < stack_end_offset {
-                return Err(CodeError::StackEndOverlaps);
-            }
-        }
-    };
 
     // If [STACK_END_EXPORT_NAME] points to mutable global, then make new const global
     // with the same init expr and change the export internal to point to the new global.
@@ -331,6 +376,8 @@ pub struct TryNewCodeConfig {
     pub check_mut_global_exports: bool,
     /// Check start section (not allowed for smart contracts)
     pub check_start_section: bool,
+    /// Check data section
+    pub check_data_section: bool,
     /// Make wasmparser validation
     pub make_validation: bool,
 }
@@ -345,6 +392,7 @@ impl Default for TryNewCodeConfig {
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,
+            check_data_section: true,
             make_validation: true,
         }
     }
@@ -410,6 +458,10 @@ impl Code {
 
         if static_pages > MAX_WASM_PAGES_AMOUNT {
             return Err(CodeError::InvalidStaticPageCount);
+        }
+
+        if config.check_data_section {
+            check_data_section(&module, static_pages)?;
         }
 
         let exports = get_exports(&module, config.check_exports)?;

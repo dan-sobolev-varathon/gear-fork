@@ -54,12 +54,10 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::ExtManager,
-    pallet,
-    schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
-    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BalanceOf, BenchmarkStorage,
+    Call, Config, CurrencyOf, Event, Ext as Externalities, GasHandlerOf, GearBank, MailboxOf,
+    Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf,
+    Schedule, TaskPoolOf,
 };
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
@@ -72,7 +70,7 @@ use common::{
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{BlockConfig, PageCosts},
     Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
@@ -85,17 +83,13 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf},
+    memory::{AllocationsContext, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
-use gear_core_backend::{
-    env::Environment,
-    memory::{ExecutorMemory, MemoryWrap},
-};
+use gear_core_backend::env::Environment;
 use gear_core_errors::*;
-use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SysCallName,
@@ -184,7 +178,6 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         ),
         block_info: Default::default(),
         performance_multiplier: gsys::Percent::new(100),
-        max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
         existential_deposit: 42,
         program_id: Default::default(),
@@ -819,28 +812,6 @@ benchmarks! {
     }
     verify {
         verify_process(res.unwrap());
-    }
-
-    mem_grow {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut store = Store::new(None);
-        let mem = ExecutorMemory::new(&mut store, 0, None).unwrap();
-        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
-    }: {
-        for _ in 0..r * API_BENCHMARK_BATCH_SIZE {
-            mem.grow(1.into()).unwrap();
-        }
-    }
-
-    mem_grow_per_page {
-        let p in 1 .. 600;
-        let mut store = Store::new(None);
-        let mem = ExecutorMemory::new(&mut store, 0, None).unwrap();
-        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
-    }: {
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            mem.grow((p as u16).into()).unwrap();
-        }
     }
 
     free {

@@ -27,7 +27,7 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, PageCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{BlockConfig, BlockInfo, PageCosts},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -38,7 +38,7 @@ use gear_core::{
         Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
         StoredMessage,
     },
-    pages::{GearPage, Interval, IntervalsTree, PageU32Size, WasmPage},
+    pages::{GearPage, Interval, IntervalsTree, PageU32Size, WasmPage, WasmPagesAmount},
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -828,7 +828,7 @@ impl ExtManager {
         let block_config = BlockConfig {
             block_info: self.block_info,
             performance_multiplier: gsys::Percent::new(100),
-            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+            max_pages: WasmPagesAmount::UPPER,
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,

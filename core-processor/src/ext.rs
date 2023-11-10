@@ -33,9 +33,7 @@ use gear_core::{
         GasCounter, GasLeft, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
-    },
+    memory::{AllocError, AllocationsContext, Memory, MemoryError, MemoryInterval, PageBuf},
     message::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
@@ -79,8 +77,6 @@ pub struct ProcessorContext {
     pub block_info: BlockInfo,
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
-    /// Max allowed wasm memory pages.
-    pub max_pages: WasmPagesAmount,
     /// Allocations config.
     pub page_costs: PageCosts,
     /// Account existential deposit
@@ -142,7 +138,6 @@ impl ProcessorContext {
             ),
             block_info: Default::default(),
             performance_multiplier: gsys::Percent::new(100),
-            max_pages: 512.into(),
             page_costs: Default::default(),
             existential_deposit: 0,
             program_id: Default::default(),
@@ -309,40 +304,6 @@ impl BackendAllocSyscallError for AllocExtError {
             Self::Charge(err) => Ok(err.into()),
             err => Err(err),
         }
-    }
-}
-
-struct LazyGrowHandler {
-    old_mem_addr: Option<u64>,
-    old_mem_size: WasmPagesAmount,
-}
-
-// TODO: remove GrowHandler after grows removing #_+_+_
-impl GrowHandler for LazyGrowHandler {
-    fn before_grow_action(mem: &mut impl Memory) -> Self {
-        // New pages allocation may change wasm memory buffer location.
-        // So we remove protections from lazy-pages
-        // and then in `after_grow_action` we set protection back for new wasm memory buffer.
-        let old_mem_addr = mem.get_buffer_host_addr();
-        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
-        Self {
-            old_mem_addr,
-            old_mem_size: mem.size(),
-        }
-    }
-
-    fn after_grow_action(self, mem: &mut impl Memory) {
-        // Add new allocations to lazy pages.
-        // Protect all lazy pages including new allocations.
-        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
-            unreachable!("Memory size cannot be zero after grow is applied for memory")
-        });
-        gear_lazy_pages_interface::update_lazy_pages_and_protect_again(
-            mem,
-            self.old_mem_addr,
-            self.old_mem_size,
-            new_mem_addr,
-        );
     }
 }
 
@@ -772,11 +733,7 @@ impl Externalities for Ext {
     type FallibleError = FallibleExtError;
     type AllocError = AllocExtError;
 
-    fn alloc(
-        &mut self,
-        pages_num: u32,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPage, Self::AllocError> {
+    fn alloc(&mut self, pages_num: u32) -> Result<WasmPage, Self::AllocError> {
         let pages = WasmPagesAmount::try_from(pages_num)
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
@@ -795,15 +752,7 @@ impl Externalities for Ext {
 
         self.context
             .allocations_context
-            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
-                let gas_for_call = self.context.page_costs.mem_grow;
-                let gas_for_pages = self.context.page_costs.mem_grow_per_page.calc(pages);
-                Ext::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    gas_for_call.saturating_add(gas_for_pages),
-                )
-            })
+            .alloc(pages)
             .map_err(Into::into)
     }
 

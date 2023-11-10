@@ -75,22 +75,32 @@ pub enum ActorPrepareMemoryError {
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
 pub enum SystemPrepareMemoryError {
     /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages num")]
-    InsufficientMemorySize,
+    #[display(fmt = "Mem size less then static pages")]
+    MemorySizeLessThenStaticPages,
+    /// Mem size more then max pages num
+    #[display(fmt = "Mem size more then max pages")]
+    MemorySizeMoreThenMaxPages,
 }
 
-/// Make checks that everything with memory goes well.
+/// Checks that `static_pages` <= `memory_size` <= `max_pages`, where:
+/// - `static_pages` - number of static pages in WASM code;
+/// - `memory_size` - memory size in pages, which is provided by execution context;
+/// - `max_pages` - maximum memory size in pages, which is provided by block config.
 fn check_memory(
     static_pages: WasmPagesAmount,
     memory_size: WasmPagesAmount,
+    max_pages: WasmPagesAmount,
 ) -> Result<(), SystemPrepareMemoryError> {
     if memory_size < static_pages {
-        log::error!(
-            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
-            memory_size,
-            static_pages
+        log::error!("Mem size less then static pages num: mem_size = {memory_size:?}, static_pages = {static_pages:?}");
+        return Err(SystemPrepareMemoryError::MemorySizeLessThenStaticPages);
+    }
+
+    if memory_size > max_pages {
+        log::trace!(
+            "Mem size more then max pages num: mem_size = {memory_size:?}, max_pages = {max_pages:?}",
         );
-        return Err(SystemPrepareMemoryError::InsufficientMemorySize);
+        return Err(SystemPrepareMemoryError::MemorySizeMoreThenMaxPages);
     }
 
     Ok(())
@@ -168,7 +178,8 @@ where
     log::debug!("Executing dispatch {:?}", dispatch);
 
     let static_pages = code.static_pages();
-    check_memory(static_pages, memory_size).map_err(SystemExecutionError::PrepareMemory)?;
+    check_memory(static_pages, memory_size, settings.max_pages)
+        .map_err(SystemExecutionError::PrepareMemory)?;
 
     let allocations_context =
         AllocationsContext::new(allocations, static_pages, settings.max_pages);
@@ -202,7 +213,6 @@ where
         message_context,
         block_info: settings.block_info,
         performance_multiplier: settings.performance_multiplier,
-        max_pages: settings.max_pages,
         page_costs: settings.page_costs,
         existential_deposit: settings.existential_deposit,
         program_id,
@@ -357,14 +367,14 @@ where
     let program = Program::new(program_id, memory_infix, instrumented_code);
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
-    let memory_size = allocations.end().map(|p| p.inc()).unwrap_or(static_pages);
+    let mem_size = WasmPagesAmount::UPPER;
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
         gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
-        allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
+        allocations_context: AllocationsContext::new(allocations, static_pages, mem_size),
         message_context: MessageContext::new(
             IncomingDispatch::new(
                 DispatchKind::Handle,
@@ -385,7 +395,6 @@ where
         ),
         block_info,
         performance_multiplier: gsys::Percent::new(100),
-        max_pages: 512.into(),
         page_costs: Default::default(),
         existential_deposit: Default::default(),
         program_id: program.id(),
@@ -416,7 +425,7 @@ where
             program.code_bytes(),
             function,
             program.code().exports().clone(),
-            memory_size,
+            mem_size,
         )
         .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
@@ -491,12 +500,21 @@ mod tests {
 
     #[test]
     fn check_memory_insufficient() {
-        let res = check_memory(8.into(), 4.into());
-        assert_eq!(res, Err(SystemPrepareMemoryError::InsufficientMemorySize));
+        let res = check_memory(8.into(), 4.into(), 10.into());
+        assert_eq!(
+            res,
+            Err(SystemPrepareMemoryError::MemorySizeLessThenStaticPages)
+        );
+        let res = check_memory(8.into(), 8.into(), 7.into());
+        assert_eq!(
+            res,
+            Err(SystemPrepareMemoryError::MemorySizeMoreThenMaxPages)
+        );
     }
 
     #[test]
     fn check_memory_ok() {
-        check_memory(4.into(), 8.into()).unwrap();
+        check_memory(4.into(), 6.into(), 8.into()).unwrap();
+        check_memory(8.into(), 8.into(), 8.into()).unwrap();
     }
 }

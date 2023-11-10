@@ -27,9 +27,6 @@ use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 
-/// Number of max pages number to use it in tests.
-pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
-
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
 #[codec(crate = scale)]

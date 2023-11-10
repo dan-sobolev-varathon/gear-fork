@@ -33,7 +33,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{DispatchKind, IncomingDispatch, MessageWaitedType},
-    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
+    pages::WasmPagesAmount,
 };
 use scale_info::{
     scale::{self, Decode, Encode},
@@ -91,13 +91,12 @@ impl<'a> GasPrecharger<'a> {
         operation: PreChargeGasOperation,
         amount: u64,
     ) -> Result<(), PrechargeError> {
-        if self.allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
-            return Err(PrechargeError::BlockGasExceeded);
-        }
         if self.counter.charge_if_enough(amount) != ChargeResult::Enough {
             return Err(PrechargeError::GasExceeded(operation));
         }
-
+        if self.allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
+            return Err(PrechargeError::BlockGasExceeded);
+        }
         Ok(())
     }
 
@@ -152,23 +151,13 @@ impl<'a> GasPrecharger<'a> {
         self.charge_gas(PreChargeGasOperation::ModuleInstrumentation, amount)
     }
 
-    /// Charge gas for pages and checks that there is enough gas for that.
-    /// Returns size of wasm memory buffer which must be created in execution environment.
-    pub fn charge_gas_for_pages(
+    pub fn charge_gas_for_static_pages(
         &mut self,
         costs: &PageCosts,
-        allocations: &IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
-    ) -> Result<WasmPagesAmount, PrechargeError> {
-        // Charging gas for static pages.
+    ) -> Result<(), PrechargeError> {
         let amount = costs.static_page.calc(static_pages);
-        self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
-
-        if let Some(page) = allocations.end() {
-            Ok(page.inc())
-        } else {
-            Ok(static_pages)
-        }
+        self.charge_gas(PreChargeGasOperation::StaticPages, amount)
     }
 }
 
@@ -379,71 +368,52 @@ pub fn precharge_for_instrumentation(
 /// Charge a message for program memory and module instantiation beforehand.
 pub fn precharge_for_memory(
     block_config: &BlockConfig,
-    mut context: ContextChargedForInstrumentation,
+    context: ContextChargedForInstrumentation,
 ) -> PrechargeResult<ContextChargedForMemory> {
     let ContextChargedForInstrumentation {
-        data:
-            ContextData {
-                gas_counter,
-                gas_allowance_counter,
-                actor_data,
-                ..
-            },
+        mut data,
         code_len_bytes,
-    } = &mut context;
+    } = context;
 
-    let mut f = || {
-        let mut charger = GasPrecharger::new(gas_counter, gas_allowance_counter);
-
-        let memory_size = charger.charge_gas_for_pages(
-            &block_config.page_costs,
-            &actor_data.allocations,
-            actor_data.static_pages,
-        )?;
-
+    let mut charge_gas = || {
+        let mut charger =
+            GasPrecharger::new(&mut data.gas_counter, &mut data.gas_allowance_counter);
+        charger
+            .charge_gas_for_static_pages(&block_config.page_costs, data.actor_data.static_pages)?;
         charger.charge_gas_for_instantiation(
             block_config.module_instantiation_byte_cost,
-            *code_len_bytes,
-        )?;
-
-        Ok(memory_size)
+            code_len_bytes,
+        )
     };
 
-    let memory_size = match f() {
-        Ok(size) => {
-            log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
-            size
+    match charge_gas() {
+        Err(PrechargeError::BlockGasExceeded) => {
+            return Err(process_allowance_exceed(
+                data.dispatch,
+                data.destination_id,
+                data.gas_counter.burned(),
+            ));
         }
-        Err(err) => {
-            log::debug!("Failed to charge for module instantiation or memory pages: {err:?}");
-            let reason = match err {
-                PrechargeError::BlockGasExceeded => {
-                    return Err(process_allowance_exceed(
-                        context.data.dispatch,
-                        context.data.destination_id,
-                        context.data.gas_counter.burned(),
-                    ));
-                }
-                PrechargeError::GasExceeded(op) => {
-                    ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op)
-                }
-            };
-
-            let system_reservation_ctx =
-                SystemReservationContext::from_dispatch(&context.data.dispatch);
+        Err(PrechargeError::GasExceeded(op)) => {
+            let reason = ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op);
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&data.dispatch);
             return Err(process_error(
-                context.data.dispatch,
-                context.data.destination_id,
-                context.data.gas_counter.burned(),
+                data.dispatch,
+                data.destination_id,
+                data.gas_counter.burned(),
                 system_reservation_ctx,
                 reason,
                 false,
             ));
         }
-    };
+        Ok(_) => {}
+    }
+
+    // +_+_+ comment
+    let memory_size = WasmPagesAmount::UPPER;
 
     Ok(ContextChargedForMemory {
-        data: context.data,
+        data,
         max_reservations: block_config.max_reservations,
         memory_size,
     })
@@ -463,14 +433,12 @@ mod tests {
     #[test]
     fn gas_for_static_pages() {
         let costs = PageCosts::new_for_tests();
+        let static_pages = 4.into();
         let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
         let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
-        let static_pages = 4.into();
-        let res = charger
-            .charge_gas_for_pages(&costs, &Default::default(), static_pages)
+        charger
+            .charge_gas_for_static_pages(&costs, static_pages)
             .unwrap();
-        // Result is static pages count
-        assert_eq!(res, static_pages);
         // Charging for static pages initialization
         let charge = costs.static_page.calc(static_pages);
         assert_eq!(charger.counter.left(), 1_000_000 - charge);

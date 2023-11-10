@@ -50,12 +50,6 @@ pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
 }
 
 impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
-    type GrowError = gear_sandbox::Error;
-
-    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        self.memory.grow(self.caller, pages.into()).map(|_| ())
-    }
-
     fn size(&self) -> WasmPagesAmount {
         WasmPagesAmount::try_from(self.memory.size(self.caller))
             .expect("Unexpected executor behavior: wasm size is bigger then 4 GB")
@@ -106,12 +100,6 @@ impl<Ext> Memory for MemoryWrap<Ext>
 where
     Ext: Externalities + 'static,
 {
-    type GrowError = gear_sandbox::Error;
-
-    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        self.memory.grow(&mut self.store, pages.into()).map(|_| ())
-    }
-
     fn size(&self) -> WasmPagesAmount {
         self.memory
             .size(&self.store)
@@ -467,95 +455,87 @@ pub(crate) struct WasmMemoryWrite {
     pub(crate) size: u32,
 }
 
-/// can't be tested outside the node runtime
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{error::ActorTerminationReason, mock::MockExt, state::State};
-    use gear_core::{
-        memory::{AllocError, AllocationsContext, NoopGrowHandler},
-        pages::WasmPage,
-    };
-    use gear_sandbox::{AsContextExt, SandboxStore};
+// +_+_+ Move to core/src/memory.rs
+// // can't be tested outside the node runtime
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::{error::ActorTerminationReason, mock::MockExt, state::State};
+//     use gear_core::{
+//         memory::{AllocError, AllocationsContext},
+//         pages::WasmPage,
+//     };
+//     use gear_sandbox::{AsContextExt, SandboxStore};
 
-    fn new_test_memory(
-        static_pages: u16,
-        max_pages: u16,
-    ) -> (AllocationsContext, MemoryWrap<MockExt>) {
-        use gear_sandbox::SandboxMemory as WasmMemory;
+//     fn new_test_memory(
+//         static_pages: u16,
+//         mem_size: u16,
+//     ) -> (AllocationsContext, MemoryWrap<MockExt>) {
+//         use gear_sandbox::SandboxMemory as WasmMemory;
 
-        let mut store = Store::new(None);
-        let memory: ExecutorMemory =
-            WasmMemory::new(&mut store, static_pages as u32, Some(max_pages as u32))
-                .expect("Memory creation failed");
-        *store.data_mut() = Some(State {
-            ext: MockExt::default(),
-            memory: memory.clone(),
-            termination_reason: ActorTerminationReason::Success.into(),
-        });
+//         let mut store = Store::new(None);
+//         let memory: ExecutorMemory =
+//             WasmMemory::new(&mut store, mem_size as u32, None).expect("Memory creation failed");
+//         *store.data_mut() = Some(State {
+//             ext: MockExt::default(),
+//             memory: memory.clone(),
+//             termination_reason: ActorTerminationReason::Success.into(),
+//         });
 
-        let memory = MemoryWrap::new(memory, store);
+//         let memory = MemoryWrap::new(memory, store);
 
-        (
-            AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
-            memory,
-        )
-    }
+//         (
+//             AllocationsContext::new(Default::default(), static_pages.into(), mem_size.into()),
+//             memory,
+//         )
+//     }
 
-    #[test]
-    fn smoky() {
-        let _ = env_logger::try_init();
+//     #[test]
+//     fn smoky() {
+//         let _ = env_logger::try_init();
 
-        let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
+//         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
-                .unwrap(),
-            16.into()
-        );
+//         assert_eq!(ctx.alloc(16.into()), Ok(16.into()));
 
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(WasmPage::UPPER)
-        );
+//         assert_eq!(ctx.alloc(0.into()).unwrap(), Ok(32.into()));
 
-        // there is a space for 14 more
-        for _ in 0..14 {
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
-                .unwrap();
-        }
+//         // there is a space for 14 more
+//         for _ in 0..14 {
+//             ctx.alloc::<NoopGrowHandler>(16.into()).unwrap();
+//         }
 
-        // no more mem!
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
-            Err(AllocError::ProgramAllocOutOfBounds)
-        );
+//         // no more mem!
+//         assert_eq!(
+//             ctx.alloc(1.into()),
+//             Err(AllocError::ProgramAllocOutOfBounds)
+//         );
 
-        // but we free some
-        ctx.free(137.into()).unwrap();
+//         // but we free some
+//         ctx.free(137.into()).unwrap();
 
-        // and now can allocate page that was freed
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(137.into())
-        );
+//         // and now can allocate page that was freed
+//         assert_eq!(
+//             ctx.alloc::<NoopGrowHandler>(1.into),
+//             Ok(137.into())
+//         );
 
-        // if we have 2 in a row we can allocate even 2
-        ctx.free(117.into()).unwrap();
-        ctx.free(118.into()).unwrap();
+//         // if we have 2 in a row we can allocate even 2
+//         ctx.free(117.into()).unwrap();
+//         ctx.free(118.into()).unwrap();
 
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(117.into())
-        );
+//         assert_eq!(
+//             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+//             Ok(117.into())
+//         );
 
-        // but if 2 are not in a row, bad luck
-        ctx.free(117.into()).unwrap();
-        ctx.free(158.into()).unwrap();
+//         // but if 2 are not in a row, bad luck
+//         ctx.free(117.into()).unwrap();
+//         ctx.free(158.into()).unwrap();
 
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            Err(AllocError::ProgramAllocOutOfBounds)
-        );
-    }
-}
+//         assert_eq!(
+//             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+//             Err(AllocError::ProgramAllocOutOfBounds)
+//         );
+//     }
+// }

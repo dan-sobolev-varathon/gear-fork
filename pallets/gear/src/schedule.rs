@@ -29,7 +29,7 @@ use frame_support::{
     weights::Weight,
 };
 use gear_core::{
-    code,
+    code::MAX_WASM_PAGES_AMOUNT,
     costs::HostFnWeights as CoreHostFnWeights,
     message,
     pages::{GearPage, PageNumber, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
@@ -192,13 +192,6 @@ pub struct Limits {
     /// version of the code. Therefore `instantiate_with_code` can fail even when supplying
     /// a wasm binary below this maximum size.
     pub code_len: u32,
-}
-
-impl Limits {
-    /// The maximum memory size in bytes that a program can occupy.
-    pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 1024
-    }
 }
 
 /// Describes the weight for all categories of supported wasm instructions.
@@ -750,7 +743,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: code::MAX_WASM_PAGES_AMOUNT.raw(),
+            memory_pages: MAX_WASM_PAGES_AMOUNT.raw(),
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,

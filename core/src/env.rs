@@ -21,7 +21,6 @@
 use crate::{
     env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
-    memory::Memory,
     message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
     pages::WasmPage,
 };
@@ -186,11 +185,7 @@ pub trait Externalities {
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutive memory pages.
-    fn alloc(
-        &mut self,
-        pages_num: u32,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPage, Self::AllocError>;
+    fn alloc(&mut self, pages_num: u32) -> Result<WasmPage, Self::AllocError>;
 
     /// Free specific memory page.
     ///

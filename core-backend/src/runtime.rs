@@ -122,10 +122,11 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         )
     }
 
+    // +_+_+ remove and use run_any
     pub fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         let mut state = caller_host_state_take(self.caller);
-        let mut mem = CallerWrap::memory(self.caller, self.memory.clone());
-        let res = state.ext.alloc(pages, &mut mem);
+        // let mut mem = CallerWrap::memory(self.caller, self.memory.clone());
+        let res = state.ext.alloc(pages);
         self.caller.data_mut().replace(state);
         res
     }

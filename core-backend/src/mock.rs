@@ -105,11 +105,7 @@ impl Externalities for MockExt {
     type FallibleError = Error;
     type AllocError = Error;
 
-    fn alloc(
-        &mut self,
-        _pages_num: u32,
-        _mem: &mut impl Memory,
-    ) -> Result<WasmPage, Self::AllocError> {
+    fn alloc(&mut self, _pages_num: u32) -> Result<WasmPage, Self::AllocError> {
         Err(Error)
     }
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
@@ -338,16 +334,6 @@ impl MockMemory {
 }
 
 impl Memory for MockMemory {
-    type GrowError = ();
-
-    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        let new_size = self.pages.len() + (u32::from(pages) as usize) * WASM_PAGE_SIZE;
-
-        self.pages.resize(new_size, 0);
-
-        Ok(())
-    }
-
     fn size(&self) -> WasmPagesAmount {
         WasmPagesAmount::try_from((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
     }
