@@ -74,12 +74,12 @@ pub enum ActorPrepareMemoryError {
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
 pub enum SystemPrepareMemoryError {
-    /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages")]
-    MemorySizeLessThenStaticPages,
-    /// Mem size more then max pages num
-    #[display(fmt = "Mem size more then max pages")]
-    MemorySizeMoreThenMaxPages,
+    /// Mem size less than static pages num
+    #[display(fmt = "Mem size less than static pages")]
+    MemorySizeLessThanStaticPages,
+    /// Mem size more than max pages num
+    #[display(fmt = "Mem size more than max pages")]
+    MemorySizeMoreThanMaxPages,
 }
 
 /// Checks that `static_pages` <= `memory_size` <= `max_pages`, where:
@@ -93,14 +93,14 @@ fn check_memory(
 ) -> Result<(), SystemPrepareMemoryError> {
     if memory_size < static_pages {
         log::error!("Mem size less then static pages num: mem_size = {memory_size:?}, static_pages = {static_pages:?}");
-        return Err(SystemPrepareMemoryError::MemorySizeLessThenStaticPages);
+        return Err(SystemPrepareMemoryError::MemorySizeLessThanStaticPages);
     }
 
     if memory_size > max_pages {
         log::trace!(
             "Mem size more then max pages num: mem_size = {memory_size:?}, max_pages = {max_pages:?}",
         );
-        return Err(SystemPrepareMemoryError::MemorySizeMoreThenMaxPages);
+        return Err(SystemPrepareMemoryError::MemorySizeMoreThanMaxPages);
     }
 
     Ok(())
@@ -181,8 +181,7 @@ where
     check_memory(static_pages, memory_size, settings.max_pages)
         .map_err(SystemExecutionError::PrepareMemory)?;
 
-    let allocations_context =
-        AllocationsContext::new(allocations, static_pages, settings.max_pages);
+    let allocations_context = AllocationsContext::new(allocations, static_pages, memory_size);
 
     // Creating message context.
     let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
@@ -503,12 +502,12 @@ mod tests {
         let res = check_memory(8.into(), 4.into(), 10.into());
         assert_eq!(
             res,
-            Err(SystemPrepareMemoryError::MemorySizeLessThenStaticPages)
+            Err(SystemPrepareMemoryError::MemorySizeLessThanStaticPages)
         );
         let res = check_memory(8.into(), 8.into(), 7.into());
         assert_eq!(
             res,
-            Err(SystemPrepareMemoryError::MemorySizeMoreThenMaxPages)
+            Err(SystemPrepareMemoryError::MemorySizeMoreThanMaxPages)
         );
     }
 

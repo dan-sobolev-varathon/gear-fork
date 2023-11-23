@@ -245,10 +245,10 @@ pub enum AllocError {
 
 impl AllocationsContext {
     /// New allocations context.
-    ///
-    /// Provide currently running `program_id`, boxed memory abstraction
-    /// and allocation manager. Also configurable `static_pages` and `max_pages`
-    /// are set.
+    /// # Arguments
+    /// * `allocations` - allocated by current program pages;
+    /// * `static_pages` - static pages amount, all `allocations` pages >= `static pages`;
+    /// * `mem_size` - current program memory size, all `allocations` pages < `mem_size`.
     pub fn new(
         allocations: IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
@@ -453,28 +453,6 @@ mod tests {
                 err => panic!("{err:?}"),
             }
         }
-
-        // #[test]
-        // fn lol() {
-        //     let _ = env_logger::try_init();
-
-        //     let static_pages = 0.into();
-        //     let allocations = Default::default(); // [WasmPage::from(65535)].into_iter().collect();
-        //     let max_pages = 91.into();
-        //     let mem_size = 584.into();
-
-        //     let mut ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-        //     let mut mem = TestMemory(mem_size);
-        //     ctx.alloc::<NoopGrowHandler>(92.into(), &mut mem, |_| Ok(())).unwrap();
-        //     log::trace!("{:?}", ctx.allocations);
-        //     ctx.free(65.into()).unwrap();
-        //     log::trace!("{:?}", ctx.allocations);
-        //     ctx.free(43.into()).unwrap();
-        //     log::trace!("{:?}", ctx.allocations);
-        //     ctx.free(90.into()).unwrap();
-        //     log::trace!("{:?}", ctx.allocations);
-        //     ctx.alloc::<NoopGrowHandler>(27294.into(), &mut mem, |_| Ok(())).expect_err("LOL");
-        // }
 
         proptest! {
             #![proptest_config(proptest_config())]
