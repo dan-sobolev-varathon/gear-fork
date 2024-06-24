@@ -9041,7 +9041,7 @@ pub mod storage {
         QueueMerkleRoot,
         Queue,
         SessionsTimer,
-        ClearScheduled,
+        ClearTimer,
         MessageNonce,
         QueueChanged,
     }
@@ -9055,7 +9055,7 @@ pub mod storage {
                 Self::QueueMerkleRoot => "QueueMerkleRoot",
                 Self::Queue => "Queue",
                 Self::SessionsTimer => "SessionsTimer",
-                Self::ClearScheduled => "ClearScheduled",
+                Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
             }
