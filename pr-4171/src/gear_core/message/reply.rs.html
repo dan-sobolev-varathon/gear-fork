@@ -284,7 +284,7 @@
         <a href="mod.rs.html#92">Value</a>,
     },
 };
-<span class="kw">use </span>gear_core_errors::{ErrorReplyReason, <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode</a>, SuccessReplyReason};
+<span class="kw">use </span>gear_core_errors::{<a href="../../../gear_core_errors/simple/enum.ErrorReplyReason.html">ErrorReplyReason</a>, <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode</a>, <a href="../../../gear_core_errors/simple/enum.SuccessReplyReason.html">SuccessReplyReason</a>};
 <span class="kw">use </span>scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -322,7 +322,7 @@
     </span><span class="kw">pub fn </span>system(
         origin_msg_id: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>,
         payload: <a href="mod.rs.html#78">Payload</a>,
-        err: <span class="kw">impl </span>Into&lt;ErrorReplyReason&gt;,
+        err: <span class="kw">impl </span>Into&lt;<a href="../../../gear_core_errors/simple/enum.ErrorReplyReason.html">ErrorReplyReason</a>&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>id = <a href="../ids.rs.html#107">MessageId::generate_reply</a>(<a href="#63">origin_msg_id</a>);
         <span class="kw">let </span>packet = <a href="#207-213">ReplyPacket::system</a>(<a href="#64">payload</a>, <a href="#65">err</a>);
@@ -439,7 +439,7 @@
             <a href="#177">payload</a>,
             gas_limit: <span class="prelude-val">None</span>,
             <a href="#177">value</a>,
-            code: <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode::Success</a>(SuccessReplyReason::Manual),
+            code: <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode::Success</a>(<a href="../../../gear_core_errors/simple/enum.SuccessReplyReason.html#variant.Manual">SuccessReplyReason::Manual</a>),
         }
     }
 
@@ -449,7 +449,7 @@
             <a href="#187">payload</a>,
             gas_limit: <span class="prelude-val">Some</span>(<a href="#187">gas_limit</a>),
             <a href="#187">value</a>,
-            code: <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode::Success</a>(SuccessReplyReason::Manual),
+            code: <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode::Success</a>(<a href="../../../gear_core_errors/simple/enum.SuccessReplyReason.html#variant.Manual">SuccessReplyReason::Manual</a>),
         }
     }
 
@@ -464,10 +464,10 @@
     <span class="comment">// TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     </span><span class="doccomment">/// Create new system generated ReplyPacket.
-    </span><span class="kw">pub fn </span>system(payload: <a href="mod.rs.html#78">Payload</a>, err: <span class="kw">impl </span>Into&lt;ErrorReplyReason&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>system(payload: <a href="mod.rs.html#78">Payload</a>, err: <span class="kw">impl </span>Into&lt;<a href="../../../gear_core_errors/simple/enum.ErrorReplyReason.html">ErrorReplyReason</a>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             <a href="#207">payload</a>,
-            code: ReplyCode::error(<a href="#207">err</a>),
+            code: <a href="../../../gear_core_errors/simple/enum.ReplyCode.html#method.error">ReplyCode::error</a>(<a href="#207">err</a>),
             ..<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
         }
     }
@@ -476,7 +476,7 @@
     </span><span class="kw">pub fn </span>auto() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             gas_limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            code: <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode::Success</a>(SuccessReplyReason::Auto),
+            code: <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode::Success</a>(<a href="../../../gear_core_errors/simple/enum.SuccessReplyReason.html#variant.Auto">SuccessReplyReason::Auto</a>),
             ..<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
         }
     }
