@@ -26,7 +26,7 @@ use crate::{ws::WSAddress, EventListener};
 use error::*;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
-    ext::{sp_core::sr25519, sp_runtime::AccountId32},
+    ext::{sp_core::sr25519::{self, Pair}, sp_runtime::AccountId32},
     signer::Signer,
     Api,
 };

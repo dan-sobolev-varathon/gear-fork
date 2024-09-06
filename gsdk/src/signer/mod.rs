@@ -114,9 +114,9 @@ impl Signer {
     }
 
     /// Change inner signer.
-    pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
+    pub fn change(mut self, pair: Pair) -> Result<Self> {
         let signer =
-            PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
+            PairSigner::new(pair);
 
         self.replace_inner(Inner {
             signer,

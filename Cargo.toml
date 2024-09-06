@@ -195,6 +195,10 @@ ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
 sha2 = { version = "0.10.8", default-features = false }
 
+# risc0-builtin deps
+risc0-zkvm = {version = "1.0", default-features = false}
+postcard = { version = "1.0.0", features = ["alloc"] }
+
 # Published deps
 #
 # https://github.com/gear-tech/gear-dlmalloc/tree/0.2.0

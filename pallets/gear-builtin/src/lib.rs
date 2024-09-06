@@ -38,6 +38,7 @@ pub mod benchmarking;
 pub mod bls12_381;
 pub mod staking;
 pub mod weights;
+pub mod risc0_verifier;
 
 #[cfg(test)]
 mod mock;

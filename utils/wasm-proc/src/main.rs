@@ -114,6 +114,8 @@ const RT_ALLOWED_IMPORTS: [&str; 76] = [
     // From `GearBls12_381`
     "ext_gear_bls_12_381_aggregate_g1_version_1",
     "ext_gear_bls_12_381_map_to_g2affine_version_1",
+    // From `Risc0_Verifier`
+    "ext_risc_0_verifier_risc0_verifier_version_1",
 ];
 
 #[derive(Debug, clap::Parser)]

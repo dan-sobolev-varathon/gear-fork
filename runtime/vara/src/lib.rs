@@ -1174,6 +1174,7 @@ impl pallet_gear_messenger::Config for Runtime {
 pub type BuiltinActors = (
     pallet_gear_builtin::bls12_381::Actor<Runtime>,
     pallet_gear_builtin::staking::Actor<Runtime>,
+    pallet_gear_builtin::risc0_verifier::Actor<Runtime>,
 );
 
 /// Builtin actors arranged in a tuple.
@@ -1182,6 +1183,7 @@ pub type BuiltinActors = (
     pallet_gear_builtin::bls12_381::Actor<Runtime>,
     pallet_gear_builtin::staking::Actor<Runtime>,
     pallet_gear_eth_bridge::Actor<Runtime>,
+    pallet_gear_builtin::risc0_verifier::Actor<Runtime>,
 );
 
 impl pallet_gear_builtin::Config for Runtime {

@@ -410,3 +410,11 @@ pub trait GearBls12_381 {
         Ok(ArkScale::<G2Affine>::from(point).encode())
     }
 }
+
+#[runtime_interface]
+pub trait Risc0Verifier {
+    fn risc0_verifier(image_id_receipt: &[u8]) -> Result<Vec<u8>, LimitedStr<'static>>{
+        let (image_id, receipt): ([u32; 8], risc0_zkvm::Receipt) = postcard::from_bytes(image_id_receipt).map_err(|_| LimitedStr::from_small_str("Receipt and image id deserialization error"))?;
+        risc0_zkvm::Receipt::verify(&receipt, image_id).map(|_| receipt.journal.bytes).map_err(|e| LimitedStr::from(format!("{}", e)))
+    }
+}

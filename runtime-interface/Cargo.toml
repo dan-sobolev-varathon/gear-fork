@@ -29,6 +29,10 @@ ark-ff = { workspace = true, optional = true }
 ark-scale = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 
+# risc0-builtin deps
+risc0-zkvm = {workspace = true, default-features = false}
+postcard = {workspace = true, features = ["alloc"]}
+
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
 
