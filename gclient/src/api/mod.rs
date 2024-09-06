@@ -63,13 +63,11 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// Change SURI to the provided `suri` and return `Self`.
-    pub fn with(self, suri: impl AsRef<str>) -> Result<Self> {
-        let mut suri = suri.as_ref().splitn(2, ':');
+    pub fn with(self, pair: Pair) -> Result<Self> {
 
         Ok(Self(
             self.0
-                .change(suri.next().expect("Infallible"), suri.next())?,
+                .change(pair)?,
             self.1,
         ))
     }
